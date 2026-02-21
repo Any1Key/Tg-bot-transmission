@@ -15,7 +15,7 @@ services:
       TRANSMISSION_RPC_WHITELIST_ENABLED: "false"
     volumes:
       - transmission_config:/config
-      - transmission_downloads:/downloads
+      - /volume1/Download:/downloads
     ports:
       - "127.0.0.1:9091:9091"
 
@@ -33,5 +33,4 @@ services:
 
 volumes:
   transmission_config:
-  transmission_downloads:
   bot_data:

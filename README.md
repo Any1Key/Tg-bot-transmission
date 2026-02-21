@@ -63,17 +63,27 @@ cp config.yml.example config.yml
 
 ```yaml
 download_dirs:
-  Фильмы: "/downloads/movies"
-  Сериалы: "/downloads/series"
-  Музыка: "/downloads/music"
-  Другое: "/downloads/misc"
+  Фильмы: "/downloads/complete/Films"
+  Сериалы: "/downloads/complete/Serials"
+  Музыка: "/downloads/complete/Music"
+  Другое: "/downloads/complete/Other"
 ```
+
+Важно: пути в `config.yml` должны быть путями внутри контейнера Transmission.
+В текущем `docker-compose.yml` каталог Synology `/volume1/Download` смонтирован как `/downloads`.
 
 ### Шаг 4. Запуск контейнеров
 
 ```bash
 docker compose up -d --build
 ```
+
+Рекомендуемая структура на хосте:
+
+- `/volume1/Download/incomplete` - временная загрузка
+- `/volume1/Download/complete/...` - конечные папки
+
+Transmission в таком сценарии качает в `incomplete`, а после завершения переносит в выбранный `download_dir` (который задаётся ботом).
 
 ### Шаг 5. Проверка
 
