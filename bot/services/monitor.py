@@ -1,6 +1,8 @@
+# Copyright (c) 2026 Any1Key
 from __future__ import annotations
 
 import asyncio
+import logging
 
 from aiogram import Bot
 
@@ -34,5 +36,5 @@ class Monitor:
                         await self.db.complete(item.torrent_hash, ratio, size, None)
                         await self.bot.send_message(item.user_id, f"✅ *Завершено*\n📦 *{esc(item.torrent_name)}*\n📏 {esc(human(size))}\n🔁 {ratio:.2f}")
             except Exception:
-                pass
+                logging.exception("monitor iteration failed")
             await asyncio.sleep(self.interval)

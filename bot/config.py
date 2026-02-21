@@ -1,12 +1,12 @@
+# Copyright (c) 2026 Any1Key
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Annotated
 from urllib.parse import urlparse
 
 import yaml
-from pydantic import BaseModel, Field, field_validator
-from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+from pydantic import BaseModel, Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -16,23 +16,24 @@ class Settings(BaseSettings):
     transmission_url: str = Field(alias="TRANSMISSION_URL")
     transmission_user: str = Field(alias="TRANSMISSION_USER")
     transmission_pass: str = Field(alias="TRANSMISSION_PASS")
-    admin_user_ids: Annotated[list[int], NoDecode] = Field(alias="ADMIN_USER_IDS")
+    admin_user_ids_raw: str | int | list[int] = Field(alias="ADMIN_USER_IDS")
     database_url: str = Field(alias="DATABASE_URL", default="sqlite+aiosqlite:///./data/bot.db")
     config_path: str = Field(alias="CONFIG_PATH", default="/app/config.yml")
+    download_dir_base: str = Field(alias="DOWNLOAD_DIR_BASE", default="/volume1/Download/complete")
     poll_interval_seconds: int = Field(alias="POLL_INTERVAL_SECONDS", default=45)
     throttle_seconds: float = Field(alias="THROTTLE_SECONDS", default=1.0)
     log_level: str = Field(alias="LOG_LEVEL", default="INFO")
 
-    @field_validator("admin_user_ids", mode="before")
-    @classmethod
-    def parse_admin_ids(cls, v: object) -> list[int]:
-        if isinstance(v, str):
-            return [int(x.strip()) for x in v.split(",") if x.strip()]
+    @property
+    def admin_user_ids(self) -> list[int]:
+        v = self.admin_user_ids_raw
         if isinstance(v, int):
             return [v]
+        if isinstance(v, str):
+            return [int(x.strip()) for x in v.split(",") if x.strip()]
         if isinstance(v, list):
             return [int(x) for x in v]
-        raise ValueError("invalid ADMIN_USER_IDS")
+        return []
 
     @property
     def transmission_conn(self) -> dict[str, object]:

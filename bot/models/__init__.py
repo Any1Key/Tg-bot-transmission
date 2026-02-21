@@ -1,4 +1,4 @@
-from bot.models.download_dir import DownloadDir
+# Copyright (c) 2026 Any1Key
 from bot.models.torrent import Torrent
 
-__all__ = ["Torrent", "DownloadDir"]
+__all__ = ["Torrent"]

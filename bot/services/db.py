@@ -1,9 +1,10 @@
+# Copyright (c) 2026 Any1Key
 from __future__ import annotations
 
 from sqlalchemy import func, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from bot.models.download_dir import DownloadDir
 from bot.models.torrent import Torrent
 
 
@@ -19,7 +20,11 @@ class DBService:
     async def add_torrent(self, user_id: int, torrent_hash: str, torrent_name: str) -> None:
         async with self.sf() as s:
             s.add(Torrent(user_id=user_id, torrent_hash=torrent_hash, torrent_name=torrent_name, status="added", notified=False))
-            await s.commit()
+            try:
+                await s.commit()
+            except IntegrityError:
+                await s.rollback()
+                raise ValueError("torrent_already_exists")
 
     async def set_torrent_dir(self, torrent_hash: str, download_dir: str) -> None:
         async with self.sf() as s:
@@ -35,16 +40,6 @@ class DBService:
         async with self.sf() as s:
             await s.execute(update(Torrent).where(Torrent.torrent_hash == torrent_hash).values(status="completed", notified=True, ratio=ratio, size_bytes=size, download_seconds=secs, completed_at=func.now()))
             await s.commit()
-
-    async def add_dir(self, user_id: int, name: str, path: str) -> None:
-        async with self.sf() as s:
-            s.add(DownloadDir(user_id=user_id, name=name, path=path))
-            await s.commit()
-
-    async def user_dirs(self, user_id: int) -> list[DownloadDir]:
-        async with self.sf() as s:
-            rows = await s.scalars(select(DownloadDir).where(DownloadDir.user_id == user_id))
-            return list(rows)
 
     async def history(self, user_id: int, page: int, page_size: int) -> tuple[list[Torrent], int]:
         async with self.sf() as s:

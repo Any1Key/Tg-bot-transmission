@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Any1Key
 """initial
 
 Revision ID: 0001_initial
@@ -15,16 +16,6 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.create_table(
-        "download_dirs",
-        sa.Column("id", sa.Integer(), primary_key=True),
-        sa.Column("user_id", sa.BigInteger(), nullable=False),
-        sa.Column("name", sa.String(64), nullable=False),
-        sa.Column("path", sa.String(512), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
-        sa.UniqueConstraint("user_id", "name", name="uq_download_dirs_user_name"),
-    )
-
     op.create_table(
         "torrents",
         sa.Column("id", sa.Integer(), primary_key=True),
@@ -44,4 +35,3 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.drop_table("torrents")
-    op.drop_table("download_dirs")

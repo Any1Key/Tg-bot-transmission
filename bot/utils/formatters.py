@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Any1Key
 
 def human(n: int) -> str:
     units=["B","KB","MB","GB","TB"]

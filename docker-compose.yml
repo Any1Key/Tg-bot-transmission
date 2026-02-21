@@ -17,7 +17,7 @@ services:
       - transmission_config:/config
       - transmission_downloads:/downloads
     ports:
-      - "9091:9091"
+      - "127.0.0.1:9091:9091"
 
   bot:
     build: .

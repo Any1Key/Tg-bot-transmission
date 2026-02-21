@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Any1Key
 from __future__ import annotations
 
 from datetime import datetime

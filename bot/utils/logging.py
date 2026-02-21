@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Any1Key
 import logging
 
 import structlog
