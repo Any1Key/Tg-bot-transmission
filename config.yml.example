@@ -1,0 +1,5 @@
+download_dirs:
+  Фильмы: "/downloads/movies"
+  Сериалы: "/downloads/series"
+  Музыка: "/downloads/music"
+  Другое: "/downloads/misc"
