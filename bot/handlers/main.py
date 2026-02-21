@@ -191,13 +191,17 @@ async def history(event: Message | CallbackQuery, db: DBService) -> None:
         txt = t("history.empty", lang)
     else:
         lines=[t("history.title", lang, page=page, pages=pages), "━━━━━━━━━━━━━━"]
-        for t in items:
-            lines.append(f"🎬 *{esc(t.torrent_name)}* \\| `{esc(t.status)}`")
+        for item in items:
+            lines.append(f"🎬 *{esc(item.torrent_name)}* \\| `{esc(item.status)}`")
         txt="\n".join(lines)
     if isinstance(event, Message):
         await event.answer(txt, reply_markup=history_kb(page, pages, lang))
     else:
-        await event.message.edit_text(txt, reply_markup=history_kb(page, pages, lang))
+        try:
+            await event.message.edit_text(txt, reply_markup=history_kb(page, pages, lang))
+        except TelegramBadRequest as exc:
+            if "message is not modified" not in str(exc).lower():
+                raise
         await event.answer()
 
 
