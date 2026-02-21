@@ -20,7 +20,7 @@ Telegram-бот для управления Transmission через удобно
 - `migrations/` - миграции Alembic
 - `.env.example` - пример переменных окружения
 - `config.yml.example` - пример системных папок загрузки
-- `docker-compose.yml` - контейнеры Transmission + bot
+- `docker-compose.yml` - контейнер бота
 - `Dockerfile` - образ бота
 
 ## 3. Установка и запуск
@@ -42,7 +42,7 @@ cp .env.example .env
 
 ```env
 TOKEN=your_telegram_bot_token_here
-TRANSMISSION_URL=http://transmission:9091/transmission/rpc
+TRANSMISSION_URL=http://your-nas-ip:9091/transmission/rpc
 TRANSMISSION_USER=change_me_user
 TRANSMISSION_PASS=change_me_password
 ADMIN_USER_IDS=123456789
@@ -69,22 +69,12 @@ download_dirs:
   Другое: "/volume1/Download/complete/Other"
 ```
 
-Важно: пути в `config.yml` должны быть путями файловой системы того Transmission, к которому подключен бот через `TRANSMISSION_URL`.
-
-- Если `TRANSMISSION_URL=http://transmission:9091/...` (Transmission из `docker-compose.yml`), используйте контейнерные пути:
-  - `/downloads/complete/...`
-- Если `TRANSMISSION_URL=http://<ip-адрес-NAS>:9091/...` (внешний Transmission на NAS), используйте пути NAS:
-  - `/volume1/Download/complete/...`
+Важно: пути в `config.yml` должны быть путями файловой системы того Transmission, к которому подключен бот через `TRANSMISSION_URL` (обычно внешний Transmission на NAS):
+- `/volume1/Download/complete/...`
 
 При несовпадении путей завершённые торренты не смогут переехать из `incomplete` в выбранную папку.
 
 ### Шаг 4. Запуск контейнеров
-
-```bash
-docker compose up -d --build
-```
-
-Если используете внешний Transmission (по IP в `TRANSMISSION_URL`), можно запускать только бота:
 
 ```bash
 docker compose up -d --build bot
@@ -177,7 +167,6 @@ docker compose run --rm bot alembic upgrade head
 ## 7. Безопасность
 
 - Не коммитьте реальный `.env`
-- Оставляйте RPC-порт Transmission ограниченным локально (`127.0.0.1:9091:9091`)
 - Используйте отдельного пользователя Transmission с сильным паролем
 - Укажите корректный `ADMIN_USER_IDS`, иначе доступ будет запрещён всем
 
@@ -201,7 +190,7 @@ docker compose run --rm bot alembic upgrade head
 
 ```bash
 git pull
-docker compose up -d --build
+docker compose up -d --build bot
 ```
 
 ## 10. Лицо проекта
