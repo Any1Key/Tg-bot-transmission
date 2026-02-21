@@ -38,7 +38,10 @@ class TransmissionService:
     async def set_dir_and_start(self, torrent_hash: str, download_dir: str) -> None:
         def _run() -> None:
             c = self._c()
-            c.change_torrent([torrent_hash], download_dir=download_dir)
+            # Устанавливаем целевой путь торрента через torrent-set-location.
+            # move=False: не переносим текущие данные вручную, Transmission сам
+            # использует incomplete dir и перенесет готовый торрент в location.
+            c.move_torrent_data([torrent_hash], download_dir, move=False)
             c.start_torrent([torrent_hash])
         await asyncio.to_thread(_run)
 
