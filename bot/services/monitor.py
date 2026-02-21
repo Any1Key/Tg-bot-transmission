@@ -34,7 +34,14 @@ class Monitor:
                         ratio = float(getattr(t, "uploadRatio", 0.0) or 0.0)
                         size = int(getattr(t, "totalSize", 0) or 0)
                         await self.db.complete(item.torrent_hash, ratio, size, None)
-                        await self.bot.send_message(item.user_id, f"✅ *Завершено*\n📦 *{esc(item.torrent_name)}*\n📏 {esc(human(size))}\n🔁 {ratio:.2f}")
+                        lang = await self.db.ensure_user_lang(item.user_id, None)
+                        done_title = "✅ *Завершено*" if lang == "ru" else "✅ *Completed*"
+                        size_title = "📏 Размер" if lang == "ru" else "📏 Size"
+                        ratio_title = "🔁 Рейтинг" if lang == "ru" else "🔁 Ratio"
+                        await self.bot.send_message(
+                            item.user_id,
+                            f"{done_title}\n📦 *{esc(item.torrent_name)}*\n{size_title}: {esc(human(size))}\n{ratio_title}: {ratio:.2f}",
+                        )
             except Exception:
                 logging.exception("monitor iteration failed")
             await asyncio.sleep(self.interval)

@@ -4,10 +4,11 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from bot.i18n import t
 
 
-def stats_kb(lang: str) -> InlineKeyboardMarkup:
+def language_kb(lang: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text=t("btn.refresh_stats", lang), callback_data="stats")],
+            [InlineKeyboardButton(text="🇷🇺 Русский", callback_data="lang:set:ru")],
+            [InlineKeyboardButton(text="🇺🇸 English", callback_data="lang:set:en")],
             [InlineKeyboardButton(text=t("btn.main_menu", lang), callback_data="menu")],
         ]
     )

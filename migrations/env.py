@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from bot.models.base import Base
 from bot.models.torrent import Torrent  # noqa: F401
+from bot.models.user_setting import UserSetting  # noqa: F401
 
 config = context.config
 if os.getenv("DATABASE_URL"):

@@ -5,7 +5,9 @@ from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+from bot.i18n import normalize_lang
 from bot.models.torrent import Torrent
+from bot.models.user_setting import UserSetting
 
 
 def make_session_factory(database_url: str) -> async_sessionmaker[AsyncSession]:
@@ -46,3 +48,24 @@ class DBService:
             total = int((await s.execute(select(func.count()).select_from(Torrent).where(Torrent.user_id == user_id))).scalar_one())
             rows = await s.scalars(select(Torrent).where(Torrent.user_id == user_id).order_by(Torrent.added_at.desc()).offset((page-1)*page_size).limit(page_size))
             return list(rows), total
+
+    async def ensure_user_lang(self, user_id: int, raw_lang: str | None) -> str:
+        async with self.sf() as s:
+            row = await s.scalar(select(UserSetting).where(UserSetting.user_id == user_id))
+            if row:
+                return normalize_lang(row.lang)
+            lang = normalize_lang(raw_lang)
+            s.add(UserSetting(user_id=user_id, lang=lang))
+            await s.commit()
+            return lang
+
+    async def set_user_lang(self, user_id: int, lang: str) -> str:
+        norm = normalize_lang(lang)
+        async with self.sf() as s:
+            row = await s.scalar(select(UserSetting).where(UserSetting.user_id == user_id))
+            if row:
+                row.lang = norm
+            else:
+                s.add(UserSetting(user_id=user_id, lang=norm))
+            await s.commit()
+        return norm

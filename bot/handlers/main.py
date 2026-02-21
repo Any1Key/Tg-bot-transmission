@@ -10,7 +10,8 @@ from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
-from bot.keyboards import dir_kb, folders_kb, history_kb, incomplete_kb, menu_kb, stats_kb
+from bot.i18n import all_button_variants, t
+from bot.keyboards import dir_kb, folders_kb, history_kb, incomplete_kb, language_kb, menu_kb, stats_kb
 from bot.services.db import DBService
 from bot.services.transmission import TransmissionService
 from bot.utils import esc, human
@@ -23,10 +24,14 @@ def _dirs(cfg: dict[str, str]) -> list[tuple[str, str]]:
     return list(cfg.items())
 
 
-def _incomplete_text(items: list[dict[str, object]]) -> str:
+async def _lang(event: Message | CallbackQuery, db: DBService) -> str:
+    return await db.ensure_user_lang(event.from_user.id, getattr(event.from_user, "language_code", None))
+
+
+def _incomplete_text(items: list[dict[str, object]], lang: str) -> str:
     if not items:
-        return "✅ *Недокачанных торрентов нет*\n🎉 Все загрузки завершены"
-    lines = ["⬇️ *Недокачанные торренты*", "━━━━━━━━━━━━━━"]
+        return t("incomplete.none", lang)
+    lines = [t("incomplete.title", lang), "━━━━━━━━━━━━━━"]
     for i, item in enumerate(items[:15], start=1):
         name = esc(str(item["name"]))
         progress = int(item["progress"])
@@ -38,49 +43,66 @@ def _incomplete_text(items: list[dict[str, object]]) -> str:
 @router.message(Command("start"))
 @router.message(Command("menu"))
 @router.message(F.text == "🏠 Главное меню")
-@router.message(F.text == "🏠 Открыть главное меню")
-async def start(message: Message) -> None:
+@router.message(F.text.in_(all_button_variants("btn.open_menu")))
+async def start(message: Message, db: DBService) -> None:
+    lang = await _lang(message, db)
     await message.answer(
-        "🏠 *Главное меню*\n"
-        "━━━━━━━━━━━━━━\n"
-        "Выберите нужный раздел ниже 👇",
-        reply_markup=menu_kb(),
+        t("menu.title", lang),
+        reply_markup=menu_kb(lang),
     )
 
 
 @router.callback_query(F.data == "menu")
-async def menu_cb(callback: CallbackQuery) -> None:
+async def menu_cb(callback: CallbackQuery, db: DBService) -> None:
+    lang = await _lang(callback, db)
     await callback.message.edit_reply_markup(reply_markup=None)
     await callback.message.answer(
-        "🏠 *Главное меню*\n"
-        "━━━━━━━━━━━━━━\n"
-        "Выберите нужный раздел ниже 👇",
-        reply_markup=menu_kb(),
+        t("menu.title", lang),
+        reply_markup=menu_kb(lang),
     )
     await callback.answer()
 
 
 @router.message(Command("cancel"))
-async def cancel(message: Message, state: FSMContext) -> None:
+async def cancel(message: Message, state: FSMContext, db: DBService) -> None:
+    lang = await _lang(message, db)
     await state.clear()
-    await message.answer("❌ Отменено", reply_markup=menu_kb())
+    await message.answer(t("cancel.done", lang), reply_markup=menu_kb(lang))
+
+
+@router.message(Command("language"))
+@router.message(F.text.in_(all_button_variants("btn.language")))
+async def language_menu(message: Message, db: DBService) -> None:
+    lang = await _lang(message, db)
+    await message.answer(t("lang.choose", lang), reply_markup=language_kb(lang))
+
+
+@router.callback_query(F.data.startswith("lang:set:"))
+async def language_set(callback: CallbackQuery, db: DBService) -> None:
+    lang = callback.data.split(":")[-1]
+    lang = await db.set_user_lang(callback.from_user.id, lang)
+    await callback.answer()
+    await callback.message.edit_text(t("lang.changed", lang), reply_markup=None)
+    await callback.message.answer(t("menu.title", lang), reply_markup=menu_kb(lang))
 
 
 @router.message(F.text.startswith("magnet:?"))
 async def magnet(message: Message, tx: TransmissionService, db: DBService, config_dirs: dict[str, str]) -> None:
+    lang = await _lang(message, db)
     h, n = await tx.add_magnet((message.text or "").strip())
     try:
         await db.add_torrent(message.from_user.id, h, n)
     except ValueError as exc:
         if str(exc) == "torrent_already_exists":
-            await message.answer("⚠️ Такой торрент уже добавлен ранее")
+            await message.answer(t("warn.duplicate", lang))
             return
         raise
-    await message.answer(f"✅ Добавлено *{esc(n)}*\nВыберите папку:", reply_markup=dir_kb(h, _dirs(config_dirs)))
+    await message.answer(t("added.pick_dir", lang, name=esc(n)), reply_markup=dir_kb(h, _dirs(config_dirs), lang))
 
 
 @router.message(F.document)
 async def torrent_file(message: Message, tx: TransmissionService, db: DBService, config_dirs: dict[str, str]) -> None:
+    lang = await _lang(message, db)
     doc = message.document
     if not doc or not (doc.file_name or "").lower().endswith(".torrent"):
         return
@@ -92,10 +114,10 @@ async def torrent_file(message: Message, tx: TransmissionService, db: DBService,
         try:
             h, n = await tx.add_file(fp)
         except Exception as exc:
-            await message.answer(f"⚠️ {esc('Не удалось добавить torrent файл в Transmission')}\n`{esc(str(exc))}`")
+            await message.answer(f"{t('err.add_torrent_file', lang)}\n`{esc(str(exc))}`")
             return
     except Exception as exc:
-        await message.answer(f"⚠️ {esc('Ошибка при обработке torrent файла')}\n`{esc(str(exc))}`")
+        await message.answer(f"{t('err.process_torrent_file', lang)}\n`{esc(str(exc))}`")
         return
     finally:
         if "fp" in locals():
@@ -104,34 +126,36 @@ async def torrent_file(message: Message, tx: TransmissionService, db: DBService,
         await db.add_torrent(message.from_user.id, h, n)
     except ValueError as exc:
         if str(exc) == "torrent_already_exists":
-            await message.answer("⚠️ Такой торрент уже добавлен ранее")
+            await message.answer(t("warn.duplicate", lang))
             return
         raise
-    await message.answer(f"✅ Добавлено *{esc(n)}*\nВыберите папку:", reply_markup=dir_kb(h, _dirs(config_dirs)))
+    await message.answer(t("added.pick_dir", lang, name=esc(n)), reply_markup=dir_kb(h, _dirs(config_dirs), lang))
 
 
 @router.callback_query(F.data.startswith("pick:"))
 async def pick(callback: CallbackQuery, tx: TransmissionService, db: DBService, config_dirs: dict[str, str]) -> None:
+    lang = await _lang(callback, db)
     _, h, i_s = callback.data.split(":")
     i = int(i_s)
     dirs = _dirs(config_dirs)
     if not (0 <= i < len(dirs)):
-        await callback.answer("Папка не найдена", show_alert=True)
+        await callback.answer(t("pick.not_found", lang), show_alert=True)
         return
     name, path = dirs[i]
     await tx.set_dir_and_start(h, path)
     await db.set_torrent_dir(h, path)
     # Одноразовые кнопки: после выбора папки убираем клавиатуру.
     await callback.message.edit_text(f"▶️ *{esc(name)}*\n`{esc(path)}`")
-    await callback.answer("ОК")
+    await callback.answer(t("pick.ok", lang))
 
 
 @router.message(Command("folders"))
 @router.message(F.text == "📁 Папки")
-@router.message(F.text == "🗂️ Системные папки")
+@router.message(F.text.in_(all_button_variants("btn.folders")))
 @router.callback_query(F.data == "folders")
-async def folders(event: Message | CallbackQuery, config_dirs: dict[str, str]) -> None:
-    lines = ["🗂️ *Системные папки загрузки*", "━━━━━━━━━━━━━━"]
+async def folders(event: Message | CallbackQuery, db: DBService, config_dirs: dict[str, str]) -> None:
+    lang = await _lang(event, db)
+    lines = [t("folders.title", lang), "━━━━━━━━━━━━━━"]
 
     if config_dirs:
         lines.append("")
@@ -140,22 +164,23 @@ async def folders(event: Message | CallbackQuery, config_dirs: dict[str, str]) -
             lines.append(f"↳ `{esc(path)}`")
     else:
         lines.append("")
-        lines.append("⚠️ Системные папки пока не настроены")
+        lines.append(t("folders.empty", lang))
 
     text = "\n".join(lines)
 
     if isinstance(event, Message):
-        await event.answer(text, reply_markup=folders_kb())
+        await event.answer(text, reply_markup=folders_kb(lang))
     else:
-        await event.message.edit_text(text, reply_markup=folders_kb())
+        await event.message.edit_text(text, reply_markup=folders_kb(lang))
         await event.answer()
 
 
 @router.message(Command("history"))
 @router.message(F.text == "📜 История")
-@router.message(F.text == "📜 История загрузок")
+@router.message(F.text.in_(all_button_variants("btn.history")))
 @router.callback_query(F.data.startswith("history:"))
 async def history(event: Message | CallbackQuery, db: DBService) -> None:
+    lang = await _lang(event, db)
     uid = event.from_user.id  # type: ignore[union-attr]
     page = 1
     if isinstance(event, CallbackQuery):
@@ -163,47 +188,48 @@ async def history(event: Message | CallbackQuery, db: DBService) -> None:
     items, total = await db.history(uid, page, PAGE_SIZE)
     pages = max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE)
     if not items:
-        txt = "📜 *История загрузок пуста*"
+        txt = t("history.empty", lang)
     else:
-        lines=[f"📜 *История загрузок* \\({page}/{pages}\\)", "━━━━━━━━━━━━━━"]
+        lines=[t("history.title", lang, page=page, pages=pages), "━━━━━━━━━━━━━━"]
         for t in items:
             lines.append(f"🎬 *{esc(t.torrent_name)}* \\| `{esc(t.status)}`")
         txt="\n".join(lines)
     if isinstance(event, Message):
-        await event.answer(txt, reply_markup=history_kb(page, pages))
+        await event.answer(txt, reply_markup=history_kb(page, pages, lang))
     else:
-        await event.message.edit_text(txt, reply_markup=history_kb(page, pages))
+        await event.message.edit_text(txt, reply_markup=history_kb(page, pages, lang))
         await event.answer()
 
 
 @router.message(Command("stats"))
 @router.message(F.text == "📊 Статистика")
-@router.message(F.text == "📊 Статистика сети")
+@router.message(F.text.in_(all_button_variants("btn.stats")))
 @router.callback_query(F.data == "stats")
-async def stats(event: Message | CallbackQuery, tx: TransmissionService) -> None:
+async def stats(event: Message | CallbackQuery, tx: TransmissionService, db: DBService) -> None:
+    lang = await _lang(event, db)
     try:
         s = await tx.stats()
     except Exception:
         if isinstance(event, Message):
-            await event.answer("⚠️ Не удалось получить статистику Transmission")
+            await event.answer(t("stats.fetch_failed", lang))
         else:
-            await event.answer("⚠️ Не удалось получить статистику", show_alert=True)
+            await event.answer(t("stats.fetch_failed_short", lang), show_alert=True)
         return
 
     txt = (
-        "📊 *Статистика сети*\n"
+        f"{t('stats.title', lang)}\n"
         "━━━━━━━━━━━━━━\n"
-        f"⬇️ Скачано: {esc(human(s['downloaded']))}\n"
-        f"⬆️ Отдано: {esc(human(s['uploaded']))}\n"
-        f"🚀 Скорость DL: {esc(human(s['download_speed']))}/s\n"
-        f"🚀 Скорость UL: {esc(human(s['upload_speed']))}/s\n"
-        f"🧩 Активных торрентов: {s['active']}"
+        f"{t('stats.downloaded', lang)}: {esc(human(s['downloaded']))}\n"
+        f"{t('stats.uploaded', lang)}: {esc(human(s['uploaded']))}\n"
+        f"{t('stats.dl_speed', lang)}: {esc(human(s['download_speed']))}/s\n"
+        f"{t('stats.ul_speed', lang)}: {esc(human(s['upload_speed']))}/s\n"
+        f"{t('stats.active', lang)}: {s['active']}"
     )
     if isinstance(event, Message):
-        await event.answer(txt, reply_markup=stats_kb())
+        await event.answer(txt, reply_markup=stats_kb(lang))
     else:
         try:
-            await event.message.edit_text(txt, reply_markup=stats_kb())
+            await event.message.edit_text(txt, reply_markup=stats_kb(lang))
         except TelegramBadRequest as exc:
             if "message is not modified" not in str(exc).lower():
                 raise
@@ -212,20 +238,21 @@ async def stats(event: Message | CallbackQuery, tx: TransmissionService) -> None
 
 @router.message(Command("incomplete"))
 @router.message(F.text == "⬇️ Недокачанные")
-@router.message(F.text == "⬇️ Недокачанные торренты")
+@router.message(F.text.in_(all_button_variants("btn.incomplete")))
 @router.callback_query(F.data == "incomplete:refresh")
-async def incomplete(event: Message | CallbackQuery, tx: TransmissionService) -> None:
+async def incomplete(event: Message | CallbackQuery, tx: TransmissionService, db: DBService) -> None:
+    lang = await _lang(event, db)
     try:
         items = await tx.incomplete()
     except Exception:
         if isinstance(event, Message):
-            await event.answer("⚠️ Не удалось получить список недокачанных")
+            await event.answer(t("incomplete.fetch_failed", lang))
         else:
-            await event.answer("⚠️ Ошибка загрузки списка", show_alert=True)
+            await event.answer(t("incomplete.fetch_failed_short", lang), show_alert=True)
         return
 
-    text = _incomplete_text(items)
-    kb = incomplete_kb(items)
+    text = _incomplete_text(items, lang)
+    kb = incomplete_kb(items, lang)
     if isinstance(event, Message):
         await event.answer(text, reply_markup=kb)
     else:
@@ -234,47 +261,51 @@ async def incomplete(event: Message | CallbackQuery, tx: TransmissionService) ->
 
 
 @router.callback_query(F.data.startswith("incomplete:resume:"))
-async def incomplete_resume_one(callback: CallbackQuery, tx: TransmissionService) -> None:
+async def incomplete_resume_one(callback: CallbackQuery, tx: TransmissionService, db: DBService) -> None:
+    lang = await _lang(callback, db)
     torrent_hash = callback.data.split(":", maxsplit=2)[2]
     try:
         await tx.resume_one(torrent_hash)
     except Exception:
-        await callback.answer("⚠️ Не удалось запустить торрент", show_alert=True)
+        await callback.answer(t("incomplete.resume_one_failed", lang), show_alert=True)
         return
-    await callback.answer("▶️ Запуск отправлен")
+    await callback.answer(t("incomplete.resume_one_sent", lang))
     items = await tx.incomplete()
-    await callback.message.edit_text(_incomplete_text(items), reply_markup=incomplete_kb(items))
+    await callback.message.edit_text(_incomplete_text(items, lang), reply_markup=incomplete_kb(items, lang))
 
 
 @router.callback_query(F.data == "incomplete:resume_all")
-async def incomplete_resume_all(callback: CallbackQuery, tx: TransmissionService) -> None:
+async def incomplete_resume_all(callback: CallbackQuery, tx: TransmissionService, db: DBService) -> None:
+    lang = await _lang(callback, db)
     count = await tx.resume_all()
-    await callback.answer(f"▶️ Запущено: {count}")
+    await callback.answer(t("incomplete.resume_all_sent", lang, count=count))
     items = await tx.incomplete()
-    await callback.message.edit_text(_incomplete_text(items), reply_markup=incomplete_kb(items))
+    await callback.message.edit_text(_incomplete_text(items, lang), reply_markup=incomplete_kb(items, lang))
 
 
 @router.callback_query(F.data == "admin:pause")
 @router.message(F.text == "⏸️ Приостановить все")
-@router.message(F.text == "⏸️ Пауза всех торрентов")
-async def pause(event: Message | CallbackQuery, tx: TransmissionService) -> None:
+@router.message(F.text.in_(all_button_variants("btn.pause_all")))
+async def pause(event: Message | CallbackQuery, tx: TransmissionService, db: DBService) -> None:
+    lang = await _lang(event, db)
     c = await tx.pause_all()
     if isinstance(event, Message):
-        await event.answer(f"⏸️ Остановлено: *{c}*", reply_markup=menu_kb())
+        await event.answer(t("pause.done", lang, count=c), reply_markup=menu_kb(lang))
     else:
         await event.message.edit_reply_markup(reply_markup=None)
         await event.answer()
-        await event.message.answer(f"⏸️ Остановлено: *{c}*", reply_markup=menu_kb())
+        await event.message.answer(t("pause.done", lang, count=c), reply_markup=menu_kb(lang))
 
 
 @router.callback_query(F.data == "admin:resume")
 @router.message(F.text == "▶️ Возобновить все")
-@router.message(F.text == "▶️ Продолжить все торренты")
-async def resume(event: Message | CallbackQuery, tx: TransmissionService) -> None:
+@router.message(F.text.in_(all_button_variants("btn.resume_all")))
+async def resume(event: Message | CallbackQuery, tx: TransmissionService, db: DBService) -> None:
+    lang = await _lang(event, db)
     c = await tx.resume_all()
     if isinstance(event, Message):
-        await event.answer(f"▶️ Запущено: *{c}*", reply_markup=menu_kb())
+        await event.answer(t("resume.done", lang, count=c), reply_markup=menu_kb(lang))
     else:
         await event.message.edit_reply_markup(reply_markup=None)
         await event.answer()
-        await event.message.answer(f"▶️ Запущено: *{c}*", reply_markup=menu_kb())
+        await event.message.answer(t("resume.done", lang, count=c), reply_markup=menu_kb(lang))
