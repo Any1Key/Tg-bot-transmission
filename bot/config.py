@@ -19,7 +19,6 @@ class Settings(BaseSettings):
     admin_user_ids_raw: str | int | list[int] = Field(alias="ADMIN_USER_IDS")
     database_url: str = Field(alias="DATABASE_URL", default="sqlite+aiosqlite:///./data/bot.db")
     config_path: str = Field(alias="CONFIG_PATH", default="/app/config.yml")
-    download_dir_base: str = Field(alias="DOWNLOAD_DIR_BASE", default="/volume1/Download/complete")
     poll_interval_seconds: int = Field(alias="POLL_INTERVAL_SECONDS", default=45)
     throttle_seconds: float = Field(alias="THROTTLE_SECONDS", default=1.0)
     log_level: str = Field(alias="LOG_LEVEL", default="INFO")

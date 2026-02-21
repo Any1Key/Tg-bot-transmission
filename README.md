@@ -84,6 +84,12 @@ download_dirs:
 docker compose up -d --build
 ```
 
+Если используете внешний Transmission (по IP в `TRANSMISSION_URL`), можно запускать только бота:
+
+```bash
+docker compose up -d --build bot
+```
+
 Рекомендуемая структура на хосте:
 
 - `/volume1/Download/incomplete` - временная загрузка
