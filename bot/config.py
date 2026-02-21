@@ -17,7 +17,6 @@ class Settings(BaseSettings):
     transmission_user: str = Field(alias="TRANSMISSION_USER")
     transmission_pass: str = Field(alias="TRANSMISSION_PASS")
     admin_user_ids: Annotated[list[int], NoDecode] = Field(alias="ADMIN_USER_IDS")
-    transmission_container_name: str = Field(alias="TRANSMISSION_CONTAINER_NAME", default="transmission")
     database_url: str = Field(alias="DATABASE_URL", default="sqlite+aiosqlite:///./data/bot.db")
     config_path: str = Field(alias="CONFIG_PATH", default="/app/config.yml")
     poll_interval_seconds: int = Field(alias="POLL_INTERVAL_SECONDS", default=45)

@@ -9,7 +9,7 @@ from aiogram.enums import ParseMode
 from bot.config import Settings, load_yaml_config
 from bot.handlers import router
 from bot.middlewares import AuthMiddleware, ThrottleMiddleware
-from bot.services import DBService, DockerControlService, Monitor, TransmissionService, make_session_factory
+from bot.services import DBService, Monitor, TransmissionService, make_session_factory
 from bot.utils.logging import setup
 
 
@@ -23,7 +23,6 @@ async def main() -> None:
 
     db = DBService(make_session_factory(s.database_url))
     tx = TransmissionService(s.transmission_conn, s.transmission_user, s.transmission_pass)
-    docker = DockerControlService()
 
     dp.message.middleware(AuthMiddleware(set(s.admin_user_ids)))
     dp.callback_query.middleware(AuthMiddleware(set(s.admin_user_ids)))
@@ -32,9 +31,7 @@ async def main() -> None:
 
     dp["db"] = db
     dp["tx"] = tx
-    dp["docker_control"] = docker
     dp["config_dirs"] = y.download_dirs
-    dp["transmission_container_name"] = s.transmission_container_name
 
     dp.include_router(router)
 

@@ -30,7 +30,6 @@ services:
     volumes:
       - bot_data:/app/data
       - ./config.yml:/app/config.yml:ro
-      - /var/run/docker.sock:/var/run/docker.sock
 
 volumes:
   transmission_config:

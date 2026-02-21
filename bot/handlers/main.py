@@ -11,7 +11,6 @@ from aiogram.types import CallbackQuery, Message
 from bot.handlers.states import AddDirState
 from bot.keyboards import dir_kb, history_kb, menu_kb, stats_kb
 from bot.services.db import DBService
-from bot.services.docker_control import DockerControlService
 from bot.services.transmission import TransmissionService
 from bot.utils import esc, human
 
@@ -138,8 +137,3 @@ async def resume(callback: CallbackQuery, tx: TransmissionService) -> None:
     await callback.answer()
     await callback.message.answer(f"▶️ Запущено: *{c}*")
 
-
-@router.callback_query(F.data == "admin:restart")
-async def restart(callback: CallbackQuery, docker_control: DockerControlService, transmission_container_name: str) -> None:
-    await docker_control.restart(transmission_container_name)
-    await callback.answer("Перезапущено")
