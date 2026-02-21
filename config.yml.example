@@ -1,5 +1,5 @@
 download_dirs:
-  Фильмы: "/downloads/complete/Films"
-  Сериалы: "/downloads/complete/Serials"
-  Музыка: "/downloads/complete/Music"
-  Другое: "/downloads/complete/Other"
+  Фильмы: "/volume1/Download/complete/Films"
+  Сериалы: "/volume1/Download/complete/Serials"
+  Музыка: "/volume1/Download/complete/Music"
+  Другое: "/volume1/Download/complete/Other"

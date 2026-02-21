@@ -63,14 +63,20 @@ cp config.yml.example config.yml
 
 ```yaml
 download_dirs:
-  Фильмы: "/downloads/complete/Films"
-  Сериалы: "/downloads/complete/Serials"
-  Музыка: "/downloads/complete/Music"
-  Другое: "/downloads/complete/Other"
+  Фильмы: "/volume1/Download/complete/Films"
+  Сериалы: "/volume1/Download/complete/Serials"
+  Музыка: "/volume1/Download/complete/Music"
+  Другое: "/volume1/Download/complete/Other"
 ```
 
-Важно: пути в `config.yml` должны быть путями внутри контейнера Transmission.
-В текущем `docker-compose.yml` каталог Synology `/volume1/Download` смонтирован как `/downloads`.
+Важно: пути в `config.yml` должны быть путями файловой системы того Transmission, к которому подключен бот через `TRANSMISSION_URL`.
+
+- Если `TRANSMISSION_URL=http://transmission:9091/...` (Transmission из `docker-compose.yml`), используйте контейнерные пути:
+  - `/downloads/complete/...`
+- Если `TRANSMISSION_URL=http://<ip-адрес-NAS>:9091/...` (внешний Transmission на NAS), используйте пути NAS:
+  - `/volume1/Download/complete/...`
+
+При несовпадении путей завершённые торренты не смогут переехать из `incomplete` в выбранную папку.
 
 ### Шаг 4. Запуск контейнеров
 
