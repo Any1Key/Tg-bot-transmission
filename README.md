@@ -28,7 +28,7 @@ Telegram-бот для управления Transmission через удобно
 ### Шаг 1. Клонирование
 
 ```bash
-git clone git@github.com:Any1Key/Tg-bot-transmission.git
+git clone https://github.com/Any1Key/Tg-bot-transmission.git
 cd Tg-bot-transmission
 ```
 
