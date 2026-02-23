@@ -8,7 +8,7 @@ from aiogram import F, Router
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 from bot.i18n import all_button_variants, t
 from bot.keyboards import dir_kb, folders_kb, history_kb, incomplete_kb, language_kb, menu_kb, stats_kb
@@ -38,6 +38,16 @@ def _incomplete_text(items: list[dict[str, object]], lang: str) -> str:
         status = esc(str(item["status"]))
         lines.append(f"{i}\\. 🧩 *{name}* \\({progress}%\\) \\| `{status}`")
     return "\n".join(lines)
+
+
+def _maintenance_kb(lang: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text=t("btn.maintenance_cleanup_missing", lang), callback_data="maintenance:cleanup:missing")],
+            [InlineKeyboardButton(text=t("btn.maintenance_cleanup_stale", lang), callback_data="maintenance:cleanup:stale")],
+            [InlineKeyboardButton(text=t("btn.main_menu", lang), callback_data="menu")],
+        ]
+    )
 
 
 @router.message(Command("start"))
@@ -84,6 +94,46 @@ async def language_set(callback: CallbackQuery, db: DBService) -> None:
     await callback.answer()
     await callback.message.edit_text(t("lang.changed", lang), reply_markup=None)
     await callback.message.answer(t("menu.title", lang), reply_markup=menu_kb(lang))
+
+
+@router.message(Command("maintenance"))
+async def maintenance_menu(message: Message, db: DBService) -> None:
+    lang = await _lang(message, db)
+    await message.answer(t("maintenance.title", lang), reply_markup=_maintenance_kb(lang))
+
+
+@router.callback_query(F.data == "maintenance:cleanup:missing")
+async def maintenance_cleanup_missing(callback: CallbackQuery, db: DBService) -> None:
+    lang = await _lang(callback, db)
+    try:
+        count = await db.cleanup_missing()
+    except Exception:
+        await callback.answer(t("maintenance.cleanup_failed", lang), show_alert=True)
+        return
+    await callback.answer()
+    await callback.message.edit_text(
+        t("maintenance.cleanup_missing_done", lang, count=count),
+        reply_markup=_maintenance_kb(lang),
+    )
+
+
+@router.callback_query(F.data == "maintenance:cleanup:stale")
+async def maintenance_cleanup_stale(
+    callback: CallbackQuery,
+    db: DBService,
+    maintenance_stale_hours: int,
+) -> None:
+    lang = await _lang(callback, db)
+    try:
+        count = await db.cleanup_stale_pending(maintenance_stale_hours)
+    except Exception:
+        await callback.answer(t("maintenance.cleanup_failed", lang), show_alert=True)
+        return
+    await callback.answer()
+    await callback.message.edit_text(
+        t("maintenance.cleanup_stale_done", lang, count=count, hours=maintenance_stale_hours),
+        reply_markup=_maintenance_kb(lang),
+    )
 
 
 @router.message(F.text.startswith("magnet:?"))

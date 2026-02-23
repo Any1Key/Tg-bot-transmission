@@ -53,6 +53,7 @@ DATABASE_URL=sqlite+aiosqlite:///./data/bot.db
 CONFIG_PATH=/app/config.yml
 POLL_INTERVAL_SECONDS=45
 THROTTLE_SECONDS=1.0
+MAINTENANCE_STALE_HOURS=24
 LOG_LEVEL=INFO
 ```
 
@@ -149,6 +150,7 @@ Or send a `.torrent` file - the flow is the same.
 - `/incomplete` - incomplete torrents
 - `/language` - choose interface language
 - `/cancel` - reset current FSM action
+- `/maintenance` - service cleanup for problematic history records
 
 ## 5. How "Incomplete" Is Detected
 
@@ -171,6 +173,14 @@ Apply migrations manually:
 docker compose run --rm bot alembic upgrade head
 ```
 
+## 6.1 Stuck Records Maintenance
+
+The `/maintenance` command opens a maintenance menu:
+- `🧹 Cleanup missing` - deletes records marked as missing in Transmission
+- `🧹 Cleanup stale pending` - deletes old pending records (older than `MAINTENANCE_STALE_HOURS`)
+
+Default: `MAINTENANCE_STALE_HOURS=24`.
+
 ## 7. Security
 
 - Do not commit real `.env`
@@ -178,6 +188,9 @@ docker compose run --rm bot alembic upgrade head
 - Set correct `ADMIN_USER_IDS`, otherwise access is denied for everyone
 
 ## 8. Troubleshooting
+
+- Healthcheck status:
+  - `docker compose ps` (`STATUS` should contain `healthy`)
 
 - Bot does not respond:
   - check `TOKEN` and `ADMIN_USER_IDS`

@@ -33,6 +33,7 @@ async def main() -> None:
     dp["db"] = db
     dp["tx"] = tx
     dp["config_dirs"] = y.download_dirs
+    dp["maintenance_stale_hours"] = s.maintenance_stale_hours
 
     dp.include_router(router)
 

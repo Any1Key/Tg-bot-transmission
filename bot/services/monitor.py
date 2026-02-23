@@ -7,7 +7,7 @@ import logging
 from aiogram import Bot
 
 from bot.services.db import DBService
-from bot.services.transmission import TransmissionService
+from bot.services.transmission import TorrentNotFoundError, TransmissionService
 from bot.utils.formatters import human
 from bot.utils.markdown import esc
 
@@ -22,12 +22,25 @@ class Monitor:
     async def stop(self) -> None:
         if self.task:
             self.task.cancel()
+            try:
+                await self.task
+            except asyncio.CancelledError:
+                pass
 
     async def run(self) -> None:
         while True:
             try:
                 for item in await self.db.get_pending():
-                    t = await self.tx.torrent(item.torrent_hash)
+                    try:
+                        t = await self.tx.torrent(item.torrent_hash)
+                    except TorrentNotFoundError:
+                        logging.warning("monitor: torrent missing in transmission, hash=%s", item.torrent_hash)
+                        await self.db.mark_missing(item.torrent_hash)
+                        continue
+                    except Exception:
+                        logging.exception("monitor: failed to fetch torrent, hash=%s", item.torrent_hash)
+                        continue
+
                     done = float(getattr(t, "percentDone", 0.0) or 0.0) >= 1.0
                     status = str(getattr(t, "status", "")).lower()
                     if done and ("seed" in status or "stop" in status):

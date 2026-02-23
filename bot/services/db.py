@@ -1,7 +1,9 @@
 # Copyright (c) 2026 Any1Key
 from __future__ import annotations
 
-from sqlalchemy import func, select, update
+from datetime import datetime, timedelta, timezone
+
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
@@ -42,6 +44,33 @@ class DBService:
         async with self.sf() as s:
             await s.execute(update(Torrent).where(Torrent.torrent_hash == torrent_hash).values(status="completed", notified=True, ratio=ratio, size_bytes=size, download_seconds=secs, completed_at=func.now()))
             await s.commit()
+
+    async def mark_missing(self, torrent_hash: str) -> None:
+        async with self.sf() as s:
+            await s.execute(
+                update(Torrent)
+                .where(Torrent.torrent_hash == torrent_hash)
+                .values(status="missing", notified=True)
+            )
+            await s.commit()
+
+    async def cleanup_missing(self) -> int:
+        async with self.sf() as s:
+            res = await s.execute(delete(Torrent).where(Torrent.status == "missing"))
+            await s.commit()
+            return int(res.rowcount or 0)
+
+    async def cleanup_stale_pending(self, stale_hours: int) -> int:
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=stale_hours)
+        async with self.sf() as s:
+            res = await s.execute(
+                delete(Torrent).where(
+                    Torrent.notified.is_(False),
+                    Torrent.added_at < cutoff,
+                )
+            )
+            await s.commit()
+            return int(res.rowcount or 0)
 
     async def history(self, user_id: int, page: int, page_size: int) -> tuple[list[Torrent], int]:
         async with self.sf() as s:

@@ -8,6 +8,12 @@ services:
     volumes:
       - bot_data:/app/data
       - ./config.yml:/app/config.yml:ro
+    healthcheck:
+      test: ["CMD-SHELL", "python -m bot.healthcheck"]
+      interval: 1m
+      timeout: 15s
+      retries: 3
+      start_period: 30s
 
 volumes:
   bot_data:

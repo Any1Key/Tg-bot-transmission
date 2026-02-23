@@ -7,6 +7,10 @@ from pathlib import Path
 from transmission_rpc import Client
 
 
+class TorrentNotFoundError(Exception):
+    pass
+
+
 class TransmissionService:
     def __init__(self, conn: dict[str, object], username: str, password: str) -> None:
         self.conn = conn
@@ -46,7 +50,15 @@ class TransmissionService:
         await asyncio.to_thread(_run)
 
     async def torrent(self, torrent_hash: str):
-        return await asyncio.to_thread(lambda: self._c().get_torrent(torrent_hash))
+        def _run():
+            try:
+                return self._c().get_torrent(torrent_hash)
+            except KeyError as exc:
+                if "Torrent not found" in str(exc):
+                    raise TorrentNotFoundError(torrent_hash) from exc
+                raise
+
+        return await asyncio.to_thread(_run)
 
     async def pause_all(self) -> int:
         def _run() -> int:

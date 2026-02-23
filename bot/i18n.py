@@ -53,6 +53,22 @@ _TEXTS: Final[dict[str, dict[str, str]]] = {
     "resume.done": {"ru": "▶️ Запущено: *{count}*", "en": "▶️ Started: *{count}*"},
     "lang.choose": {"ru": "🌐 *Язык интерфейса*", "en": "🌐 *Interface Language*"},
     "lang.changed": {"ru": "✅ Язык переключен на русский", "en": "✅ Language switched to English"},
+    "maintenance.title": {
+        "ru": "🛠️ *Обслуживание*\nВыберите действие:",
+        "en": "🛠️ *Maintenance*\nChoose an action:",
+    },
+    "maintenance.cleanup_missing_done": {
+        "ru": "🧹 Удалено записей со статусом `missing`: *{count}*",
+        "en": "🧹 Deleted `missing` records: *{count}*",
+    },
+    "maintenance.cleanup_stale_done": {
+        "ru": "🧹 Удалено устаревших pending \\(>{hours}ч\\): *{count}*",
+        "en": "🧹 Deleted stale pending \\(>{hours}h\\): *{count}*",
+    },
+    "maintenance.cleanup_failed": {
+        "ru": "⚠️ Ошибка обслуживания",
+        "en": "⚠️ Maintenance failed",
+    },
     "btn.stats": {"ru": "📊 Статистика сети", "en": "📊 Network Stats"},
     "btn.folders": {"ru": "🗂️ Системные папки", "en": "🗂️ System Folders"},
     "btn.history": {"ru": "📜 История загрузок", "en": "📜 Download History"},
@@ -72,6 +88,8 @@ _TEXTS: Final[dict[str, dict[str, str]]] = {
         "en": "▶️ Resume All Incomplete",
     },
     "btn.refresh_list": {"ru": "🔄 Обновить список", "en": "🔄 Refresh List"},
+    "btn.maintenance_cleanup_missing": {"ru": "🧹 Очистить missing", "en": "🧹 Cleanup missing"},
+    "btn.maintenance_cleanup_stale": {"ru": "🧹 Очистить stale pending", "en": "🧹 Cleanup stale pending"},
 }
 
 

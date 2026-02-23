@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     config_path: str = Field(alias="CONFIG_PATH", default="/app/config.yml")
     poll_interval_seconds: int = Field(alias="POLL_INTERVAL_SECONDS", default=45)
     throttle_seconds: float = Field(alias="THROTTLE_SECONDS", default=1.0)
+    maintenance_stale_hours: int = Field(alias="MAINTENANCE_STALE_HOURS", default=24)
     log_level: str = Field(alias="LOG_LEVEL", default="INFO")
 
     @property
