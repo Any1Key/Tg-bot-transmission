@@ -120,10 +120,11 @@ class Monitor:
                         done_title = "✅ *Завершено*" if lang == "ru" else "✅ *Completed*"
                         size_title = "📏 Размер" if lang == "ru" else "📏 Size"
                         ratio_title = "🔁 Рейтинг" if lang == "ru" else "🔁 Ratio"
+                        ratio_text = esc(f"{ratio:.2f}")
                         try:
                             await self.bot.send_message(
                                 item.user_id,
-                                f"{done_title}\n📦 *{esc(item.torrent_name)}*\n{size_title}: {esc(human(size))}\n{ratio_title}: {ratio:.2f}",
+                                f"{done_title}\n📦 *{esc(item.torrent_name)}*\n{size_title}: {esc(human(size))}\n{ratio_title}: {ratio_text}",
                             )
                         except Exception:
                             logging.exception("monitor: failed to send completion notification, hash=%s user_id=%s", item.torrent_hash, item.user_id)
