@@ -49,14 +49,31 @@ def _pick_int(obj: object, *names: str) -> int | None:
 
 
 def _pick_bool(obj: object, *names: str) -> bool | None:
+    def cast_bool(raw: object) -> bool | None:
+        if isinstance(raw, bool):
+            return raw
+        if isinstance(raw, (int, float)):
+            return bool(raw)
+        if isinstance(raw, str):
+            x = raw.strip().lower()
+            if x in {"1", "true", "yes", "on"}:
+                return True
+            if x in {"0", "false", "no", "off", ""}:
+                return False
+        return None
+
     for name in names:
         val = getattr(obj, name, None)
         if val is not None:
-            return bool(val)
+            out = cast_bool(val)
+            if out is not None:
+                return out
     fields = getattr(obj, "fields", {}) or {}
     for name in names:
         if name in fields and fields[name] is not None:
-            return bool(fields[name])
+            out = cast_bool(fields[name])
+            if out is not None:
+                return out
     return None
 
 
@@ -99,15 +116,19 @@ class Monitor:
                     if _is_complete(t):
                         ratio = _pick_float(t, "uploadRatio", "upload_ratio") or 0.0
                         size = _pick_int(t, "totalSize", "total_size") or 0
-                        await self.db.complete(item.torrent_hash, ratio, size, None)
                         lang = await self.db.ensure_user_lang(item.user_id, None)
                         done_title = "✅ *Завершено*" if lang == "ru" else "✅ *Completed*"
                         size_title = "📏 Размер" if lang == "ru" else "📏 Size"
                         ratio_title = "🔁 Рейтинг" if lang == "ru" else "🔁 Ratio"
-                        await self.bot.send_message(
-                            item.user_id,
-                            f"{done_title}\n📦 *{esc(item.torrent_name)}*\n{size_title}: {esc(human(size))}\n{ratio_title}: {ratio:.2f}",
-                        )
+                        try:
+                            await self.bot.send_message(
+                                item.user_id,
+                                f"{done_title}\n📦 *{esc(item.torrent_name)}*\n{size_title}: {esc(human(size))}\n{ratio_title}: {ratio:.2f}",
+                            )
+                        except Exception:
+                            logging.exception("monitor: failed to send completion notification, hash=%s user_id=%s", item.torrent_hash, item.user_id)
+                            continue
+                        await self.db.complete(item.torrent_hash, ratio, size, None)
             except Exception:
                 logging.exception("monitor iteration failed")
             await asyncio.sleep(self.interval)

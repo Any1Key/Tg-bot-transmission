@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import tempfile
+from datetime import datetime
 from pathlib import Path
 
 from aiogram import F, Router
@@ -11,7 +12,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 from bot.i18n import all_button_variants, t
-from bot.keyboards import dir_kb, folders_kb, history_kb, incomplete_kb, language_kb, menu_kb, stats_kb
+from bot.keyboards import dir_kb, folder_icon, folders_kb, history_kb, incomplete_kb, language_kb, menu_kb, stats_kb
 from bot.services.db import DBService
 from bot.services.transmission import TransmissionService
 from bot.utils import esc, human
@@ -38,6 +39,49 @@ def _incomplete_text(items: list[dict[str, object]], lang: str) -> str:
         status = esc(str(item["status"]))
         lines.append(f"{i}\\. 🧩 *{name}* \\({progress}%\\) \\| `{status}`")
     return "\n".join(lines)
+
+
+def _pick_int(obj: object, *names: str) -> int | None:
+    for name in names:
+        val = getattr(obj, name, None)
+        if val is not None:
+            try:
+                return int(val)
+            except (TypeError, ValueError):
+                continue
+    fields = getattr(obj, "fields", {}) or {}
+    for name in names:
+        if name in fields and fields[name] is not None:
+            try:
+                return int(fields[name])
+            except (TypeError, ValueError):
+                continue
+    return None
+
+
+def _pick_str(obj: object, *names: str) -> str | None:
+    for name in names:
+        val = getattr(obj, name, None)
+        if val is not None:
+            s = str(val).strip()
+            if s:
+                return s
+    fields = getattr(obj, "fields", {}) or {}
+    for name in names:
+        if name in fields and fields[name] is not None:
+            s = str(fields[name]).strip()
+            if s:
+                return s
+    return None
+
+
+def _fmt_added(ts: int | None, lang: str) -> str:
+    if not ts or ts <= 0:
+        return t("pick.unknown", lang)
+    dt = datetime.fromtimestamp(ts)
+    if lang == "ru":
+        return dt.strftime("%d.%m.%Y %H:%M")
+    return dt.strftime("%Y-%m-%d %H:%M")
 
 
 def _maintenance_kb(lang: str) -> InlineKeyboardMarkup:
@@ -194,8 +238,30 @@ async def pick(callback: CallbackQuery, tx: TransmissionService, db: DBService, 
     name, path = dirs[i]
     await tx.set_dir_and_start(h, path)
     await db.set_torrent_dir(h, path)
+    torrent_name = t("pick.unknown", lang)
+    size_text = t("pick.unknown", lang)
+    added_text = t("pick.unknown", lang)
+    try:
+        tor = await tx.torrent(h)
+        torrent_name = _pick_str(tor, "name") or torrent_name
+        size = _pick_int(tor, "totalSize", "total_size")
+        if size is not None and size >= 0:
+            size_text = human(size)
+        added_text = _fmt_added(_pick_int(tor, "addedDate", "added_date"), lang)
+    except Exception:
+        pass
+
+    icon = folder_icon(name, path)
+    lines = [
+        t("pick.summary_title", lang),
+        f"{t('pick.folder', lang)}: {icon} *{esc(name)}*",
+        f"{t('pick.file', lang)}: *{esc(torrent_name)}*",
+        f"{t('pick.size', lang)}: *{esc(size_text)}*",
+        f"{t('pick.added_at', lang)}: `{esc(added_text)}`",
+        f"{t('pick.path', lang)}: `{esc(path)}`",
+    ]
     # Одноразовые кнопки: после выбора папки убираем клавиатуру.
-    await callback.message.edit_text(f"▶️ *{esc(name)}*\n`{esc(path)}`")
+    await callback.message.edit_text("\n".join(lines))
     await callback.answer(t("pick.ok", lang))
 
 
@@ -210,7 +276,7 @@ async def folders(event: Message | CallbackQuery, db: DBService, config_dirs: di
     if config_dirs:
         lines.append("")
         for name, path in config_dirs.items():
-            lines.append(f"📁 *{esc(name)}*")
+            lines.append(f"{folder_icon(name, path)} *{esc(name)}*")
             lines.append(f"↳ `{esc(path)}`")
     else:
         lines.append("")
