@@ -59,6 +59,19 @@ class DBServiceTest(unittest.IsolatedAsyncioTestCase):
             hashes = list(await s.scalars(select(Torrent.torrent_hash)))
             self.assertEqual(hashes, ["hash-new"])
 
+    async def test_add_torrent_allows_readding_missing_for_same_user(self) -> None:
+        await self.db.add_torrent(1, "hash-readd", "First name")
+        await self.db.mark_missing("hash-readd")
+
+        await self.db.add_torrent(1, "hash-readd", "Second name")
+
+        async with self.sf() as s:
+            row = await s.scalar(select(Torrent).where(Torrent.torrent_hash == "hash-readd"))
+            assert row is not None
+            self.assertEqual(row.torrent_name, "Second name")
+            self.assertEqual(row.status, "added")
+            self.assertFalse(row.notified)
+
 
 if __name__ == "__main__":
     unittest.main()

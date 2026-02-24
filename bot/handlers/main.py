@@ -1,6 +1,7 @@
 # Copyright (c) 2026 Any1Key
 from __future__ import annotations
 
+import logging
 import tempfile
 from datetime import datetime
 from pathlib import Path
@@ -27,6 +28,26 @@ def _dirs(cfg: dict[str, str]) -> list[tuple[str, str]]:
 
 async def _lang(event: Message | CallbackQuery, db: DBService) -> str:
     return await db.ensure_user_lang(event.from_user.id, getattr(event.from_user, "language_code", None))
+
+
+async def _delete_pressed_button_message(message: Message) -> None:
+    text = (message.text or "").strip()
+    button_texts = set(
+        all_button_variants("btn.open_menu")
+        + all_button_variants("btn.language")
+        + all_button_variants("btn.stats")
+        + all_button_variants("btn.folders")
+        + all_button_variants("btn.history")
+        + all_button_variants("btn.incomplete")
+        + all_button_variants("btn.pause_all")
+        + all_button_variants("btn.resume_all")
+    )
+    legacy = {"🏠 Главное меню", "📊 Статистика", "📁 Папки", "📜 История", "⬇️ Недокачанные", "⏸️ Приостановить все", "▶️ Возобновить все"}
+    if text in button_texts or text in legacy:
+        try:
+            await message.delete()
+        except Exception:
+            pass
 
 
 def _incomplete_text(items: list[dict[str, object]], lang: str) -> str:
@@ -99,6 +120,7 @@ def _maintenance_kb(lang: str) -> InlineKeyboardMarkup:
 @router.message(F.text == "🏠 Главное меню")
 @router.message(F.text.in_(all_button_variants("btn.open_menu")))
 async def start(message: Message, db: DBService) -> None:
+    await _delete_pressed_button_message(message)
     lang = await _lang(message, db)
     await message.answer(
         t("menu.title", lang),
@@ -127,6 +149,7 @@ async def cancel(message: Message, state: FSMContext, db: DBService) -> None:
 @router.message(Command("language"))
 @router.message(F.text.in_(all_button_variants("btn.language")))
 async def language_menu(message: Message, db: DBService) -> None:
+    await _delete_pressed_button_message(message)
     lang = await _lang(message, db)
     await message.answer(t("lang.choose", lang), reply_markup=language_kb(lang))
 
@@ -226,10 +249,18 @@ async def torrent_file(message: Message, tx: TransmissionService, db: DBService,
     await message.answer(t("added.pick_dir", lang, name=esc(n)), reply_markup=dir_kb(h, _dirs(config_dirs), lang))
 
 
-@router.callback_query(F.data.startswith("pick:"))
+@router.callback_query(F.data.startswith("pick:set:"))
+@router.callback_query(F.data.regexp(r"^pick:[^:]+:\d+$"))
 async def pick(callback: CallbackQuery, tx: TransmissionService, db: DBService, config_dirs: dict[str, str]) -> None:
     lang = await _lang(callback, db)
-    _, h, i_s = callback.data.split(":")
+    parts = (callback.data or "").split(":")
+    if len(parts) == 4 and parts[1] == "set":
+        _, _, h, i_s = parts
+    elif len(parts) == 3:
+        _, h, i_s = parts
+    else:
+        await callback.answer(t("pick.not_found", lang), show_alert=True)
+        return
     i = int(i_s)
     dirs = _dirs(config_dirs)
     if not (0 <= i < len(dirs)):
@@ -265,6 +296,26 @@ async def pick(callback: CallbackQuery, tx: TransmissionService, db: DBService, 
     await callback.answer(t("pick.ok", lang))
 
 
+@router.callback_query(F.data.startswith("pick:cancel:"))
+async def pick_cancel(callback: CallbackQuery, tx: TransmissionService, db: DBService) -> None:
+    lang = await _lang(callback, db)
+    torrent_hash = (callback.data or "").split(":", maxsplit=2)[-1]
+    status = await db.get_user_torrent_status(callback.from_user.id, torrent_hash)
+    if status != "added":
+        await callback.answer(t("pick.already_processed", lang), show_alert=True)
+        return
+    try:
+        await tx.cancel_torrent(torrent_hash, delete_data=False)
+    except Exception:
+        logging.exception("pick_cancel: failed to cancel torrent hash=%s", torrent_hash)
+        await callback.answer(t("pick.cancel_failed", lang), show_alert=True)
+        return
+    await db.delete_user_torrent(callback.from_user.id, torrent_hash)
+    await callback.message.edit_text(t("pick.cancelled", lang), reply_markup=None)
+    await callback.message.answer(t("menu.title", lang), reply_markup=menu_kb(lang))
+    await callback.answer()
+
+
 @router.message(Command("folders"))
 @router.message(F.text == "📁 Папки")
 @router.message(F.text.in_(all_button_variants("btn.folders")))
@@ -285,6 +336,7 @@ async def folders(event: Message | CallbackQuery, db: DBService, config_dirs: di
     text = "\n".join(lines)
 
     if isinstance(event, Message):
+        await _delete_pressed_button_message(event)
         await event.answer(text, reply_markup=folders_kb(lang))
     else:
         await event.message.edit_text(text, reply_markup=folders_kb(lang))
@@ -308,9 +360,16 @@ async def history(event: Message | CallbackQuery, db: DBService) -> None:
     else:
         lines=[t("history.title", lang, page=page, pages=pages), "━━━━━━━━━━━━━━"]
         for item in items:
-            lines.append(f"🎬 *{esc(item.torrent_name)}* \\| `{esc(item.status)}`")
+            added_at = item.added_at
+            if isinstance(added_at, datetime):
+                added_text = added_at.strftime("%d.%m.%Y %H:%M") if lang == "ru" else added_at.strftime("%Y-%m-%d %H:%M")
+            else:
+                added_text = t("pick.unknown", lang)
+            lines.append(f"🎬 *{esc(item.torrent_name)}*")
+            lines.append(f"📅 `{esc(added_text)}`")
         txt="\n".join(lines)
     if isinstance(event, Message):
+        await _delete_pressed_button_message(event)
         await event.answer(txt, reply_markup=history_kb(page, pages, lang))
     else:
         try:
@@ -346,6 +405,7 @@ async def stats(event: Message | CallbackQuery, tx: TransmissionService, db: DBS
         f"{t('stats.active', lang)}: {s['active']}"
     )
     if isinstance(event, Message):
+        await _delete_pressed_button_message(event)
         await event.answer(txt, reply_markup=stats_kb(lang))
     else:
         try:
@@ -374,6 +434,7 @@ async def incomplete(event: Message | CallbackQuery, tx: TransmissionService, db
     text = _incomplete_text(items, lang)
     kb = incomplete_kb(items, lang)
     if isinstance(event, Message):
+        await _delete_pressed_button_message(event)
         await event.answer(text, reply_markup=kb)
     else:
         await event.message.edit_text(text, reply_markup=kb)
@@ -410,6 +471,7 @@ async def pause(event: Message | CallbackQuery, tx: TransmissionService, db: DBS
     lang = await _lang(event, db)
     c = await tx.pause_all()
     if isinstance(event, Message):
+        await _delete_pressed_button_message(event)
         await event.answer(t("pause.done", lang, count=c), reply_markup=menu_kb(lang))
     else:
         await event.message.edit_reply_markup(reply_markup=None)
@@ -424,6 +486,7 @@ async def resume(event: Message | CallbackQuery, tx: TransmissionService, db: DB
     lang = await _lang(event, db)
     c = await tx.resume_all()
     if isinstance(event, Message):
+        await _delete_pressed_button_message(event)
         await event.answer(t("resume.done", lang, count=c), reply_markup=menu_kb(lang))
     else:
         await event.message.edit_reply_markup(reply_markup=None)

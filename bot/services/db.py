@@ -8,6 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from bot.i18n import normalize_lang
+from bot.models.base import utcnow
 from bot.models.torrent import Torrent
 from bot.models.user_setting import UserSetting
 
@@ -28,12 +29,50 @@ class DBService:
                 await s.commit()
             except IntegrityError:
                 await s.rollback()
-                raise ValueError("torrent_already_exists")
+                existing = await s.scalar(select(Torrent).where(Torrent.torrent_hash == torrent_hash))
+                if not existing or int(existing.user_id) != int(user_id):
+                    raise ValueError("torrent_already_exists")
+
+                # Активную задачу не дублируем, но разрешаем пере-добавление
+                # старых/завершенных/missing записей тем же пользователем.
+                if existing.status in {"added", "downloading"} and not existing.notified:
+                    raise ValueError("torrent_already_exists")
+
+                existing.torrent_name = torrent_name
+                existing.download_dir = None
+                existing.status = "added"
+                existing.notified = False
+                existing.ratio = None
+                existing.size_bytes = None
+                existing.download_seconds = None
+                existing.completed_at = None
+                existing.added_at = utcnow()
+                await s.commit()
 
     async def set_torrent_dir(self, torrent_hash: str, download_dir: str) -> None:
         async with self.sf() as s:
             await s.execute(update(Torrent).where(Torrent.torrent_hash == torrent_hash).values(download_dir=download_dir, status="downloading"))
             await s.commit()
+
+    async def get_user_torrent_status(self, user_id: int, torrent_hash: str) -> str | None:
+        async with self.sf() as s:
+            return await s.scalar(
+                select(Torrent.status).where(
+                    Torrent.user_id == user_id,
+                    Torrent.torrent_hash == torrent_hash,
+                )
+            )
+
+    async def delete_user_torrent(self, user_id: int, torrent_hash: str) -> int:
+        async with self.sf() as s:
+            res = await s.execute(
+                delete(Torrent).where(
+                    Torrent.user_id == user_id,
+                    Torrent.torrent_hash == torrent_hash,
+                )
+            )
+            await s.commit()
+            return int(res.rowcount or 0)
 
     async def get_pending(self) -> list[Torrent]:
         async with self.sf() as s:

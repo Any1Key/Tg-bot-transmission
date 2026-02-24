@@ -49,6 +49,19 @@ class TransmissionService:
             c.start_torrent([torrent_hash])
         await asyncio.to_thread(_run)
 
+    async def cancel_torrent(self, torrent_hash: str, delete_data: bool = False) -> None:
+        def _run() -> None:
+            c = self._c()
+            try:
+                t = c.get_torrent(torrent_hash)
+            except KeyError as exc:
+                if "Torrent not found" in str(exc):
+                    return
+                raise
+            c.stop_torrent([t.id])
+            c.remove_torrent([t.id], delete_data=delete_data)
+        await asyncio.to_thread(_run)
+
     async def torrent(self, torrent_hash: str):
         def _run():
             try:
