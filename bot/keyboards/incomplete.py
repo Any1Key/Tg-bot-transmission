@@ -3,7 +3,7 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from bot.i18n import t
 
-def _short(name: str, max_len: int = 28) -> str:
+def _short(name: str, max_len: int = 22) -> str:
     if len(name) <= max_len:
         return name
     return name[: max_len - 1] + "…"

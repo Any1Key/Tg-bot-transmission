@@ -53,13 +53,15 @@ async def _delete_pressed_button_message(message: Message) -> None:
 def _incomplete_text(items: list[dict[str, object]], lang: str) -> str:
     if not items:
         return t("incomplete.none", lang)
-    lines = [t("incomplete.title", lang), "━━━━━━━━━━━━━━"]
+    lines = [t("incomplete.title", lang), ""]
     for i, item in enumerate(items[:15], start=1):
         name = esc(str(item["name"]))
         progress = int(item["progress"])
         status = esc(str(item["status"]))
-        lines.append(f"{i}\\. 🧩 *{name}* \\({progress}%\\) \\| `{status}`")
-    return "\n".join(lines)
+        lines.append(f"{i}\\. 🧩 *{name}*")
+        lines.append(f"   {progress}% • `{status}`")
+        lines.append("")
+    return "\n".join(lines).rstrip()
 
 
 def _pick_int(obj: object, *names: str) -> int | None:
@@ -322,18 +324,17 @@ async def pick_cancel(callback: CallbackQuery, tx: TransmissionService, db: DBSe
 @router.callback_query(F.data == "folders")
 async def folders(event: Message | CallbackQuery, db: DBService, config_dirs: dict[str, str]) -> None:
     lang = await _lang(event, db)
-    lines = [t("folders.title", lang), "━━━━━━━━━━━━━━"]
+    lines = [t("folders.title", lang), ""]
 
     if config_dirs:
-        lines.append("")
         for name, path in config_dirs.items():
             lines.append(f"{folder_icon(name, path)} *{esc(name)}*")
-            lines.append(f"↳ `{esc(path)}`")
+            lines.append(f"`{esc(path)}`")
+            lines.append("")
     else:
-        lines.append("")
         lines.append(t("folders.empty", lang))
 
-    text = "\n".join(lines)
+    text = "\n".join(lines).rstrip()
 
     if isinstance(event, Message):
         await _delete_pressed_button_message(event)
@@ -358,7 +359,7 @@ async def history(event: Message | CallbackQuery, db: DBService) -> None:
     if not items:
         txt = t("history.empty", lang)
     else:
-        lines=[t("history.title", lang, page=page, pages=pages), "━━━━━━━━━━━━━━"]
+        lines = [t("history.title", lang, page=page, pages=pages), ""]
         for item in items:
             added_at = item.added_at
             if isinstance(added_at, datetime):
@@ -366,8 +367,10 @@ async def history(event: Message | CallbackQuery, db: DBService) -> None:
             else:
                 added_text = t("pick.unknown", lang)
             lines.append(f"🎬 *{esc(item.torrent_name)}*")
-            lines.append(f"📅 `{esc(added_text)}`")
-        txt="\n".join(lines)
+            lines.append(f"⏱ `{esc(added_text)}`")
+            lines.append(f"📌 `{esc(item.status)}`")
+            lines.append("")
+        txt = "\n".join(lines).rstrip()
     if isinstance(event, Message):
         await _delete_pressed_button_message(event)
         await event.answer(txt, reply_markup=history_kb(page, pages, lang))
@@ -396,13 +399,12 @@ async def stats(event: Message | CallbackQuery, tx: TransmissionService, db: DBS
         return
 
     txt = (
-        f"{t('stats.title', lang)}\n"
-        "━━━━━━━━━━━━━━\n"
-        f"{t('stats.downloaded', lang)}: {esc(human(s['downloaded']))}\n"
-        f"{t('stats.uploaded', lang)}: {esc(human(s['uploaded']))}\n"
-        f"{t('stats.dl_speed', lang)}: {esc(human(s['download_speed']))}/s\n"
-        f"{t('stats.ul_speed', lang)}: {esc(human(s['upload_speed']))}/s\n"
-        f"{t('stats.active', lang)}: {s['active']}"
+        f"{t('stats.title', lang)}\n\n"
+        f"{t('stats.downloaded', lang)}  `{esc(human(s['downloaded']))}`\n"
+        f"{t('stats.uploaded', lang)}  `{esc(human(s['uploaded']))}`\n"
+        f"{t('stats.dl_speed', lang)}  `{esc(human(s['download_speed']))}/s`\n"
+        f"{t('stats.ul_speed', lang)}  `{esc(human(s['upload_speed']))}/s`\n"
+        f"{t('stats.active', lang)}  *{s['active']}*"
     )
     if isinstance(event, Message):
         await _delete_pressed_button_message(event)
